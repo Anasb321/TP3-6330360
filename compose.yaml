@@ -52,17 +52,25 @@ services:
     networks:
       - web
 
-  blogverse:
-    image: nginxdemos/hello
-    container_name: blogverse
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.blogverse.rule=Host(`blog.${DOMAIN}`)"
-      - "traefik.http.routers.blogverse.entrypoints=websecure"
-      - "traefik.http.routers.blogverse.tls.certresolver=myresolver"
-    networks:
-      - web
+    blogverse-backend:
+      image: 6330360/tp2-6330360-blogverse-backend:latest
+      container_name: blogverse-backend
+      restart: always
+      networks:
+        - web
 
+      blogverse-frontend:
+        image: 6330360/tp2-6330360-blogverse-frontend:latest
+        container_name: blogverse-frontend
+        restart: always
+        labels:
+          - "traefik.enable=true"
+          - "traefik.http.routers.blogverse.rule=Host(`blog.${DOMAIN}`)"
+          - "traefik.http.routers.blogverse.entrypoints=websecure"
+          - "traefik.http.routers.blogverse.tls.certresolver=myresolver"
+        networks:
+          - web
+          
 networks:
   web:
     external: false
