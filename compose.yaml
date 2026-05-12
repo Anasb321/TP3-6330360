@@ -1,20 +1,28 @@
-services:
+sservices:
   traefik:
-    image: traefik:v3.0
+    image: traefik
     container_name: traefik
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     command:
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
       - "--entrypoints.web.http.redirections.entryPoint.to=websecure"
       - "--entrypoints.web.http.redirections.entryPoint.scheme=https"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.delayBeforeCheck=60"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.resolvers=8.8.8.8:53,1.1.1.1:53"
       - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
       - "--certificatesresolvers.myresolver.acme.dnschallenge.provider=duckdns"
       - "--certificatesresolvers.myresolver.acme.email=${EMAIL}"
       - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.delayBeforeCheck=30"
     environment:
       - DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
+      - DOCKER_API_VERSION=1.40
     ports:
       - "80:80"
       - "443:443"
@@ -25,9 +33,11 @@ services:
       - web
 
   portainer:
-    image: portainer/portainer-ce:latest
+    image: portainer/portainer-ce:alpine
     container_name: portainer
-    restart: always
+    restart: unless-stopped
+    networks:
+      - web  # Changé de cloud à web
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.portainer.rule=Host(`portainer.${DOMAIN}`)"
@@ -35,45 +45,49 @@ services:
       - "traefik.http.routers.portainer.tls.certresolver=myresolver"
       - "traefik.http.services.portainer.loadbalancer.server.port=9000"
     volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
       - portainer_data:/data
-    networks:
-      - web
 
   jellyfin:
-    image: jellyfin/jellyfin
+    image: jellyfin/jellyfin:latest
     container_name: jellyfin
-    restart: always
+    restart: unless-stopped
+    networks:
+      - web  # Changé de cloud à web
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.jellyfin.rule=Host(`jellyfin.${DOMAIN}`)"
       - "traefik.http.routers.jellyfin.entrypoints=websecure"
       - "traefik.http.routers.jellyfin.tls.certresolver=myresolver"
       - "traefik.http.services.jellyfin.loadbalancer.server.port=8096"
+    environment:
+      - TZ=America/Montreal
+    volumes:
+      - jellyfin_data:/config
+
+  blogverse-backend:
+    image: 6330360/tp2-6330360-blogverse-backend:latest
+    container_name: blogverse-backend
+    restart: always
     networks:
       - web
 
-    blogverse-backend:
-      image: 6330360/tp2-6330360-blogverse-backend:latest
-      container_name: blogverse-backend
-      restart: always
-      networks:
-        - web
+  blogverse-frontend:
+    image: 6330360/tp2-6330360-blogverse-frontend:latest
+    container_name: blogverse-frontend
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.blogverse.rule=Host(`blog.${DOMAIN}`)"
+      - "traefik.http.routers.blogverse.entrypoints=websecure"
+      - "traefik.http.routers.blogverse.tls.certresolver=myresolver"
+    networks:
+      - web
 
-      blogverse-frontend:
-        image: 6330360/tp2-6330360-blogverse-frontend:latest
-        container_name: blogverse-frontend
-        restart: always
-        labels:
-          - "traefik.enable=true"
-          - "traefik.http.routers.blogverse.rule=Host(`blog.${DOMAIN}`)"
-          - "traefik.http.routers.blogverse.entrypoints=websecure"
-          - "traefik.http.routers.blogverse.tls.certresolver=myresolver"
-        networks:
-          - web
-          
 networks:
   web:
     external: false
 
 volumes:
   portainer_data:
+  jellyfin_data:
